@@ -117,9 +117,20 @@ def getCTnoTipLoss(dct_dr, rR, x_hub = 0.1):
     return scipy.integrate.simps(dct_dr_toIntegrate,rR_toIntegrate)
 
 
-'''TODOO'''
 
-# Step 10. Determine appropriate heuristic for tip loss value
+# Step 10
+
+'''TODOO make necessary changes to address the other two alternatived heuristics'''
+
+def getTipLossFactor(CTnoTipLoss,b):
+    
+    assert(np.isscalar(CTnoTipLoss))
+
+    assert(np.isscalar(b))
+    
+    assert(b > 0)
+    
+    return 1 - ((np.sqrt(2*CTnoTipLoss))/b)
 
 
 
@@ -189,10 +200,30 @@ def getInducedTorqueCoefficient(dqi_dr,rR, x_hub = 0.1, B = 0.9):
 
 # Step 16
 
-def computeWake(CT,CQi):
+'''TODO Address inherent problems in this heuristic 
+        and make something thats better'''
+
+def computeDelCQ(CT,CQi):
+    
+    assert(np.isscalar(CT))
+    assert(np.isscalar(CQi))
+
+    
+    ct_candidates =  np.linspace(0,0.05,11)
     
     
-    return 0
+    
+    #From linear correction figure 1.29
+    
+    linearCorrection = np.array([0, 0.011, 0.028, 0.04, 0.053, 0.064, 0.075, 
+                                0.083, 0.092, 0.10, 0.11])
+    
+    idx = np.abs(ct_candidates - CT).argmin()
+    
+    
+    
+    
+    return linearCorrection[idx]*CQi
 
 
 # Step 17
@@ -201,8 +232,43 @@ def computeDiskLoading(CT,rho,omega,R):
     
     return (CT * rho *( omega*R)**2)
 
+# Step 18
+
+def computeRatioCTtoSolidity(CT,b,c,R):
+    
+    return (CT)/(((b*c)/(np.pi*R)))
 
 
+# Step 19
+
+def computeWakeTorqueLinearCorrection(DiskLoading,CT_solidity):
+    
+    
+    
+    # Source Figure 1.34
+    
+    '''TODO CREATE A CORRECTION THAT IS MORE ACCURATE'''
+    
+    return 0.94 + (1.06 * DiskLoading*CT_solidity)
+
+
+# Step 20
+
+def computeTorqueCoefficient(CQ,CQi,delCQ,wakeCorrection):
+    
+    assert(np.isscalar(CQ))
+    
+    assert(np.isscalar(CQi))
+
+    assert(np.isscalar(delCQ))
+
+    assert(np.isscalar(wakeCorrection))
+    
+    return (CQ + CQi + delCQ)*wakeCorrection
+    
+
+
+    
 
 
 
