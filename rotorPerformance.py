@@ -12,6 +12,10 @@ import numpy as np
 import scipy.integrate
 
 
+# For more accurate estimation of the effect of a hub and tip loss
+import scipy.interpolate
+
+
 # Class is meant to store geometry of a specific rotor and perform certain tasks
 
 # Maybe functions first would be more illuminating
@@ -41,9 +45,17 @@ import scipy.integrate
 
 
   
+# Step 4 choose collective pitch (if it is not given)
+
+''' TODOOOOOOO CREATE '''
+
+def getCollectivePitch(delTheta,alphaZL):
+    
+    
+    return np.array([0])
 
 
-
+''' '''
 # Step 5 get inflow angle and induced velocity
 
 # Function takes in lift slope curve a, number of blades b,
@@ -85,6 +97,12 @@ def getLocalAOA(theta, inducedAngle):
 
 
 
+
+
+
+
+
+
 # Step 8 
 
 # cl is assumed to be a numpy array of the appropriate length obtained in step 7
@@ -97,9 +115,13 @@ def getRunningThrustLoading(b,rR,cR,cl):
     return ((b * (rR**2) * cR * cl)/(2*np.pi))
 
 
+
+
 # Step 9
 
 # Integrate removing the assumed hub radius 
+
+''' TODOOOO Change Integration to SPLINE '''
 
 def getCTnoTipLoss(dct_dr, rR, x_hub = 0.1):
     
@@ -107,14 +129,24 @@ def getCTnoTipLoss(dct_dr, rR, x_hub = 0.1):
     
     assert(len(dct_dr) == len(rR))
     
-    indexs = [i for i,l in enumerate(rR) if l > x_hub]
-    
-    rR_toIntegrate = rR[indexs]
-    
-    dct_dr_toIntegrate = dct_dr[indexs] 
+    tck = scipy.interpolate.splrep(rR,dct_dr)
     
     
-    return scipy.integrate.simps(dct_dr_toIntegrate,rR_toIntegrate)
+    
+    
+    
+    
+    # indexs = [i for i,l in enumerate(rR) if l > x_hub]
+    
+    # rR_toIntegrate = rR[indexs]
+    
+    # dct_dr_toIntegrate = dct_dr[indexs] 
+    
+    # scipy.integrate.simps(dct_dr_toIntegrate,rR_toIntegrate)
+    
+    return scipy.interpolate.splint(x_hub,1,tck)
+
+
 
 
 
@@ -139,18 +171,25 @@ def getTipLossFactor(CTnoTipLoss,b):
 
 ''' TODO REFACTOR TO ACCOUNT FOR POSSSIBLE LACK OF POINTS '''
 
+''' TODOOOO Change Integration to SPLINE '''
+
+
 def getCorrectedCT(CTnoTipLoss, dct_dr, rR, B = 0.9):
     
     assert(len(dct_dr) == len(rR))
     
-    indexs = [i for i,l in enumerate(rR) if l > B]
+    # indexs = [i for i,l in enumerate(rR) if l > B]
     
-    rR_toIntegrate = rR[indexs]
+    # rR_toIntegrate = rR[indexs]
     
-    dct_dr_toIntegrate = dct_dr[indexs] 
+    # dct_dr_toIntegrate = dct_dr[indexs] 
+    
+    # scipy.integrate.simps(dct_dr_toIntegrate,rR_toIntegrate)
+    
+    tck = scipy.interpolate.splrep(rR,dct_dr)
     
     
-    return CTnoTipLoss - scipy.integrate.simps(dct_dr_toIntegrate,rR_toIntegrate)
+    return CTnoTipLoss - scipy.interpolate.splint(B,1,tck)
 
 # step 12
     
@@ -164,13 +203,17 @@ def getRunningProfileTorqueCoefficient(b,rR, cR, cd):
 
 
 # Step 13
+
+''' TODOOOO Check which integration is more accurate when continuous func not used '''
+
     
 def getProfileTorqueCoefficient(dq_dr,rR):
     
     assert(len(dq_dr) == len(rR))
     
-    return scipy.integrate.simps(dq_dr,rR)
-
+    tck = scipy.interpolate.splrep(rR,dq_dr)
+    
+    return scipy.interpolate.splint(0,1,tck)
 
 
 # Step 14
@@ -183,20 +226,26 @@ def getRunningInducedTorqueCoefficient(b,rR,cR,cl,induced_Vel):
 
 
 
+
+
+''' TODOOOO Change Integration to SPLINE '''
+
 # Step 15
 def getInducedTorqueCoefficient(dqi_dr,rR, x_hub = 0.1, B = 0.9):
     
     assert(len(dqi_dr) == len(rR))
     
-    indexs = [i for i,l in enumerate(rR) if l > B and l < x_hub]
+    # indexs = [i for i,l in enumerate(rR) if l > B and l < x_hub]
     
-    rR_toIntegrate = rR[indexs]
+    # rR_toIntegrate = rR[indexs]
     
-    dqi_dr_toIntegrate = dqi_dr[indexs] 
+    # dqi_dr_toIntegrate = dqi_dr[indexs] 
     
-    return scipy.integrate.simps(dqi_dr_toIntegrate,rR_toIntegrate)
-
-
+    # scipy.integrate.simps(dqi_dr_toIntegrate,rR_toIntegrate)
+       
+    tck = scipy.interpolate.splrep(rR,dqi_dr)
+    
+    return scipy.interpolate.splint(x_hub,B,tck)
 
 # Step 16
 
@@ -220,9 +269,6 @@ def computeDelCQ(CT,CQi):
     
     idx = np.abs(ct_candidates - CT).argmin()
     
-    
-    
-    
     return linearCorrection[idx]*CQi
 
 
@@ -232,6 +278,9 @@ def computeDiskLoading(CT,rho,omega,R):
     
     return (CT * rho *( omega*R)**2)
 
+
+
+
 # Step 18
 
 def computeRatioCTtoSolidity(CT,b,c,R):
@@ -239,12 +288,11 @@ def computeRatioCTtoSolidity(CT,b,c,R):
     return (CT)/(((b*c)/(np.pi*R)))
 
 
+
+
 # Step 19
 
-def computeWakeTorqueLinearCorrection(DiskLoading,CT_solidity):
-    
-    
-    
+def computeWakeTorqueLinearCorrection(DiskLoading,CT_solidity):  
     # Source Figure 1.34
     
     '''TODO CREATE A CORRECTION THAT IS MORE ACCURATE'''
@@ -265,10 +313,6 @@ def computeTorqueCoefficient(CQ,CQi,delCQ,wakeCorrection):
     assert(np.isscalar(wakeCorrection))
     
     return (CQ + CQi + delCQ)*wakeCorrection
-    
-
-
-    
 
 
 
