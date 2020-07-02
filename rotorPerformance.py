@@ -11,9 +11,20 @@ import numpy as np
 
 import scipy.integrate
 
-
 # For more accurate estimation of the effect of a hub and tip loss
 import scipy.interpolate
+
+
+
+# For testing right now
+
+import pandas as pd
+
+import matplotlib.pyplot as plt
+
+
+
+''' Note REALLY NEED TO COMPLETE THE TEST CASES FOR BASIC FUNCTIONS'''
 
 
 # Class is meant to store geometry of a specific rotor and perform certain tasks
@@ -42,35 +53,85 @@ import scipy.interpolate
 # Omega = Angular V (rad/s), theta0 
 
 #def rotorPerformanceFromGeometry(b,R,C,omega,theta0, thetaMin, cl_cd_alpha):
+    
+
+    
+    
+# Step 3 Tabulate Lift Slope Curve:
+
+def _tabulateBladeElements(C,R,twist,n = 10):
+    ''' Creates a list of blade elements for integration if the number was not specified by the user. 
+    Assumes chord is constant since otherwise the blade elements would have to be specified by the user.
+    '''
+    
+    rR = np.linspace(1/n ,1 ,n)
+    
+    cR = np.full((n,1),C/R)
+    
+    assert(len(twist) == 2 or len(twist) == 0)
+    
+    
+    
+    if len(twist) == 2:
+        twist = np.linspace(twist[0],twist[1],n) # Note it assumes linear twist
+    else:
+        twist = np.full((n,1),0)
+    
+    return [rR, cR, twist]
 
 
-  
+
+
+
+
 # Step 4 choose collective pitch (if it is not given)
 
-''' TODOOOOOOO CREATE '''
 
-def getCollectivePitch(delTheta,alphaZL):
+''' TODDDOOOOOO CREATE better description and function'''
+
+def _getCollectivePitch(twist,alphaZL):
+    ''' Take local twist and airfoil zero lift angle in Rad and return a list that guarantees the 
+    effective angle is never negative. Here collective pitch is chosen to be equal to the zero lift angle. 
+    This can
+    '''
+    
+    collective = alphaZL
     
     
-    return np.array([0])
+    return collective + twist - alphaZL
 
 
 ''' '''
-# Step 5 get inflow angle and induced velocity
 
-# Function takes in lift slope curve a, number of blades b,
+
+
+# Step 5
+
+
+# get inflow angle and induced velocity
+
+# Function takes in:
+# a:  lift slope curve
+# b:   number of blades b,
 # r/R:  a vector of elements displaying the ratio of the blade element to the max radius
 # c/R : a vector of elelements with the ratio of the local chord to the maximum radius
-# theta: a vector of the local twist 
+# theta: a vector of the local angle 
 
 #returns a vector of the induced velocity of every point
 
 
 
-def getInducedVelocity(a,b, cR, rR,theta):
+def _getInducedVelocity(a,b, cR, rR,theta):
+    '''Return inflow angle and induced velocity ratio.
     
-    # check if cR and theta are either scalars or arrays of the appropriate length
-    
+    Parameters:
+    a:  lift slope curve (Cl per RADIANS)
+    b:   number of blades b
+    r/R:  a vector of elements displaying the ratio of the blade element to the max radius (0,1]
+    c/R : a vector of elelements with the ratio of the local chord to the maximum radius
+    theta: a vector of the local angle (RADIANS)
+    '''
+        
     assert(np.isscalar(theta) or len(rR) == len(theta))
     
     assert(np.isscalar(cR) or len(cR) == len(rR))
@@ -79,35 +140,70 @@ def getInducedVelocity(a,b, cR, rR,theta):
     return  ((a * b * cR) / (16 *np.pi* rR)) * (-1 + np.sqrt(1 + (32 * np.pi * theta * rR) /(a * b * cR)  ) )
     
 
+
+
+
+
+
+
+
 # Step 6
 
 
 # theta and induced angle will be in RADIANS
 
-# but the angle of attack returned will be in DEGREES due to historical convention for AOA
+# but the angle of attack returned will be in DEGREES due to historical convention for AOA (and the way xfoil tabulates data)
 
-def getLocalAOA(theta, inducedAngle):
+def _getLocalAOA(theta, inducedAngle):
     
     return (theta - np.arctan(inducedAngle)) * (180/np.pi) 
 
 
 
-''' TODO '''
+''' TODO  FINISH / TEST '''
 # Step 7 -- extract cl,cd as a functon of mach number and airfoil Shape 
 
 
+def _extractClandCd(airfoil,alphas):
+    
+    cl_list = []
+    cd_list = []
+    
+    cl_column = airfoil.columns.get_loc('CL')
+    cd_column = airfoil.columns.get_loc('CD')
+    
+    for alpha in alphas:
+        
+        index = abs(airfoil['alpha'].to_numpy(dtype=float) - alpha).argmin()
+        
+        cl = airfoil.iloc[index,cl_column]
+        
+        cd = airfoil.iloc[index,cd_column]
+                
+        cl_list.append(cl)
+        
+        cd_list.append(cd)
+        
+        
+        pass
+    
+    df = pd.DataFrame({'CL' : cl_list, 'CD' : cd_list})
+    
+    return df
+
+    
 
 
 
 
-
+#NACA0012 = pd.read_csv("NACA0012_RE500000_RAWXF.txt",delim_whitespace=True)
 
 
 # Step 8 
 
 # cl is assumed to be a numpy array of the appropriate length obtained in step 7
 
-def getRunningThrustLoading(b,rR,cR,cl):
+def _getRunningThrustLoading(b,rR,cR,cl):
     
     assert(len(cl) == len(rR))
     
@@ -121,20 +217,15 @@ def getRunningThrustLoading(b,rR,cR,cl):
 
 # Integrate removing the assumed hub radius 
 
-''' TODOOOO Change Integration to SPLINE '''
 
-def getCTnoTipLoss(dct_dr, rR, x_hub = 0.1):
+def _getCTnoTipLoss(dct_dr, rR, x_hub = 0.1):
     
     # find index of every element larger than the hub
     
     assert(len(dct_dr) == len(rR))
     
     tck = scipy.interpolate.splrep(rR,dct_dr)
-    
-    
-    
-    
-    
+     
     
     # indexs = [i for i,l in enumerate(rR) if l > x_hub]
     
@@ -154,7 +245,7 @@ def getCTnoTipLoss(dct_dr, rR, x_hub = 0.1):
 
 '''TODOO make necessary changes to address the other two alternatived heuristics'''
 
-def getTipLossFactor(CTnoTipLoss,b):
+def _getTipLossFactor(CTnoTipLoss,b):
     
     assert(np.isscalar(CTnoTipLoss))
 
@@ -167,14 +258,11 @@ def getTipLossFactor(CTnoTipLoss,b):
 
 
 
+
+
 # Step 11
 
-''' TODO REFACTOR TO ACCOUNT FOR POSSSIBLE LACK OF POINTS '''
-
-''' TODOOOO Change Integration to SPLINE '''
-
-
-def getCorrectedCT(CTnoTipLoss, dct_dr, rR, B = 0.9):
+def _getCorrectedCT(CTnoTipLoss, dct_dr, rR, B = 0.9):
     
     assert(len(dct_dr) == len(rR))
     
@@ -193,7 +281,7 @@ def getCorrectedCT(CTnoTipLoss, dct_dr, rR, B = 0.9):
 
 # step 12
     
-def getRunningProfileTorqueCoefficient(b,rR, cR, cd):
+def _getRunningProfileTorqueCoefficient(b,rR, cR, cd):
     
     assert(len(rR) == len(cd))
     assert(len(rR) == len(cR))
@@ -207,7 +295,7 @@ def getRunningProfileTorqueCoefficient(b,rR, cR, cd):
 ''' TODOOOO Check which integration is more accurate when continuous func not used '''
 
     
-def getProfileTorqueCoefficient(dq_dr,rR):
+def _getProfileTorqueCoefficient(dq_dr,rR):
     
     assert(len(dq_dr) == len(rR))
     
@@ -218,7 +306,7 @@ def getProfileTorqueCoefficient(dq_dr,rR):
 
 # Step 14
 
-def getRunningInducedTorqueCoefficient(b,rR,cR,cl,induced_Vel):
+def _getRunningInducedTorqueCoefficient(b,rR,cR,cl,induced_Vel):
     
     
     
@@ -227,11 +315,8 @@ def getRunningInducedTorqueCoefficient(b,rR,cR,cl,induced_Vel):
 
 
 
-
-''' TODOOOO Change Integration to SPLINE '''
-
 # Step 15
-def getInducedTorqueCoefficient(dqi_dr,rR, x_hub = 0.1, B = 0.9):
+def _getInducedTorqueCoefficient(dqi_dr,rR, x_hub = 0.1, B = 0.9):
     
     assert(len(dqi_dr) == len(rR))
     
@@ -251,8 +336,12 @@ def getInducedTorqueCoefficient(dqi_dr,rR, x_hub = 0.1, B = 0.9):
 
 '''TODO Address inherent problems in this heuristic 
         and make something thats better'''
+        
+        
+''' HEURISTIC TO ESTIMATE '''
 
-def computeDelCQ(CT,CQi):
+
+def _computeDelCQ(CT,CQi):
     
     assert(np.isscalar(CT))
     assert(np.isscalar(CQi))
@@ -272,27 +361,31 @@ def computeDelCQ(CT,CQi):
     return linearCorrection[idx]*CQi
 
 
+
+
 # Step 17
 
-def computeDiskLoading(CT,rho,omega,R):
+def _computeDiskLoading(CT,rho,omega,R):
     
     return (CT * rho *( omega*R)**2)
 
 
 
 
+
+
 # Step 18
 
-def computeRatioCTtoSolidity(CT,b,c,R):
+def _computeRatioCTtoSolidity(CT,b,c,R):
     
     return (CT)/(((b*c)/(np.pi*R)))
 
 
-
-
 # Step 19
 
-def computeWakeTorqueLinearCorrection(DiskLoading,CT_solidity):  
+''' HEURISTIC TO ESTIMATE '''
+
+def _computeWakeTorqueLinearCorrection(DiskLoading,CT_solidity):
     # Source Figure 1.34
     
     '''TODO CREATE A CORRECTION THAT IS MORE ACCURATE'''
@@ -300,9 +393,11 @@ def computeWakeTorqueLinearCorrection(DiskLoading,CT_solidity):
     return 0.94 + (1.06 * DiskLoading*CT_solidity)
 
 
+
+
 # Step 20
 
-def computeTorqueCoefficient(CQ,CQi,delCQ,wakeCorrection):
+def _computeTorqueCoefficient(CQ,CQi,delCQ,wakeCorrection):
     
     assert(np.isscalar(CQ))
     
@@ -316,6 +411,140 @@ def computeTorqueCoefficient(CQ,CQi,delCQ,wakeCorrection):
 
 
 
+# Estimate lift slope curve:
+
+    
+''' TODO Change lift slope curve to utilize airfoil information and Mach Number info'''
+def _getLiftSlopeCurve(airfoil,omega,R,rR):
+    ''' Extrapolates the effective lift slope curve for every blade element based on Mach number and airfoil shape'''
+    
+    
+    return np.full(rR.shape,2*np.pi*(np.pi/180))
+
+
+
+def computeHoverPerformanceCoefficients(b,R,C,omega,rR = [],cR = [], twist = [], airfoil='NACA0012'):
+    ''' Main function to compute the Coefficient of Thrust and Torque for a hovering aircraft 
+    
+    Params:
+        b: Number of Blades (integer)
+        
+        R: Radius in [Meters]
+        
+        C: Chord [Meters] if varying chord please add maximum here and a discrete number of points in the cR variable
+        
+        omega: Rotation rate in [rad/s]
+        
+        r/R: (0,1] np.array with Position of blade elements as a function of Radius, needed when the chord is not constant
+              
+        c/R: Chord length divided by Radius, please make sure r/R and c/R refer to the same points
+        
+        twist: Either a vector with the twist at every blade element or the minimum and maximum if using linear twist. 
+        Please Use DEGREES here, internally computations will be done in 
+        
+        airfoil: Functionality is still being added. Currently it is running with either NACA0012 or 
+        a Pandas dataframe [alpha,cl,cd] of your desired airfoil
+    '''
+    
+    assert(len(rR) == len(cR))
+    
+    
+    assert(len(rR) == len(twist) or len(twist) == 2 or len(twist) == 0)
+    
+    
+    # Tabulating elements if they were not provided
+    if len(rR) == 0:
+        rR,cR,twist = _tabulateBladeElements(C, R, twist)
+        pass
+    
+    
+    # Converting twist from Degrees to Radians
+    
+    twist = twist * (np.pi)/180
+    
+    
+    
+    # Obtaining theta from twist and zero angle of attack 
+    '''ASSUMING ZERO ANGLE OF ATTACK COMPUTED ALREADY PLEASE ADD CODE HERE ONCE IT IS DONE '''
+    
+    alphaZL = 0
+    
+    theta = _getCollectivePitch(twist, alphaZL)
+        
+    
+    # Get lift slope curve
+    ''' TODO MAKE ACCURATE '''
+    
+    
+    # Note make sure this returns either a pandas series or a numpy ndarray
+    a = _getLiftSlopeCurve(airfoil, omega, R, rR)
+    
+    
+    
+    # Step 5
+    inducedAngle = _getInducedVelocity(a, b, cR, rR, theta)
+    
+    
+    
+    # Step 6
+    
+    alphas = _getLocalAOA(theta, inducedAngle)
+    
+    
+    # Step 7 (Get cl and cd for every angle of attack on preceding list)
+    
+    
+    # refactor for efficiency and clarity
+    
+    aeroCoef_df = _extractClandCd(airfoil, alphas)
+    
+    cl = aeroCoef_df['CL'].to_numpy(dtype=float)
+    
+    cd = aeroCoef_df['CD']
+    
+    
+    
+    # Step 8    
+    
+    runningThrustLoad = _getRunningThrustLoading(b,rR,cR,cl)
+    
+    
+    # Step 9
+    
+    CTnoLoss = _getCTnoTipLoss(runningThrustLoad, rR)
+    
+    # Step 10
+    
+    B = _getTipLossFactor(CTnoLoss,b)
+    
+    print(B)
+    
+    # Step 11
+    
+    CT = _getCorrectedCT(CTnoLoss, runningThrustLoad, rR, B)
+    
+    print(CT)
+    
+    
+    # Step 12
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+
+
+    
+    
+
+
+
 
 a = 2*np.pi
 
@@ -325,4 +554,50 @@ cR = 0.2
 
 rR = np.array([0.1,0.3,0.5,0.9])
 
-thits = np.array([0.2,0.2,0.2,0.2])
+thetas = np.array([0.2,0.2,0.2,0.2])
+
+naca0012 = pd.read_csv("NACA0012_RE500000_RAWXF.txt",delim_whitespace=True)
+
+testProp = pd.read_csv("apcff_9x4_geom.txt",delim_whitespace=True)
+
+# Scrapping unnecessary data
+
+naca0012 = naca0012.iloc[1:,:3]
+
+
+
+
+
+
+
+
+
+computeHoverPerformanceCoefficients(2,0.22,0.02,100,testProp['r/R'],testProp['c/R'],testProp['beta'],naca0012)
+
+
+
+
+
+
+
+
+
+
+# Fitness test
+
+
+# x = naca0012.iloc[:,0].to_numpy(dtype=float)
+
+# y = naca0012.iloc[:,1].to_numpy(dtype=float)
+
+# x = x[72:132]
+
+# y = y[72:132]
+
+
+# thinAirfoil = lambda alpha : 2 * np.pi * (np.pi/180) * alpha
+
+# test = thinAirfoil(x)
+
+
+# plt.plot(x,y,x,thinAirfoil(x))

@@ -25,11 +25,11 @@ class Test_hoverRotor(unittest.TestCase):
         
         b_test = 2
         
-        cR_test = np.array([0.1,0.1,0.1,0.2,0.2])
+        cR_test = np.array([0.1,0.2])
 
-        rR_test = np.array([0.1,0.3,0.5,0.7,1])
+        rR_test = np.array([0.3,1])
 
-        theta_test = 10  
+        theta_test = np.deg2rad(10)  
         
         
         
