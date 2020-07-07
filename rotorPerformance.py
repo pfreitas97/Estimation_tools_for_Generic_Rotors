@@ -16,6 +16,12 @@ import scipy.interpolate
 
 
 
+# Testing regression model for airfoil slope
+
+import scipy.stats
+
+
+
 # For testing right now
 
 import pandas as pd
@@ -218,7 +224,7 @@ def _getRunningThrustLoading(b,rR,cR,cl):
 # Integrate removing the assumed hub radius 
 
 
-def _getCTnoTipLoss(dct_dr, rR, x_hub = 0.1):
+def _getCTnoTipLoss(dct_dr, rR, x_hub = 0.01):
     
     # find index of every element larger than the hub
     
@@ -262,7 +268,7 @@ def _getTipLossFactor(CTnoTipLoss,b):
 
 # Step 11
 
-def _getCorrectedCT(CTnoTipLoss, dct_dr, rR, B = 0.9):
+def _getCorrectedCT(CTnoTipLoss, dct_dr, rR, B = 0.95):
     
     assert(len(dct_dr) == len(rR))
     
@@ -418,8 +424,22 @@ def _computeTorqueCoefficient(CQ,CQi,delCQ,wakeCorrection):
 def _getLiftSlopeCurve(airfoil,omega,R,rR):
     ''' Extrapolates the effective lift slope curve for every blade element based on Mach number and airfoil shape'''
     
+    # Thin airfoil approximation:
+    #np.full(rR.shape,2*np.pi*(np.pi/180))
     
-    return np.full(rR.shape,2*np.pi*(np.pi/180))
+    y = airfoil['CL'].to_numpy(dtype=float)
+    x = airfoil['alpha'].to_numpy(dtype=float)
+    
+    
+    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x,y)
+    
+    print('slope: %s' % slope)
+    print('intercept: %s' % intercept)
+    print('rvalue: %s' % r_value)
+    
+    return np.full(rR.shape,slope)
+
+## NEED TO FIND ACTUAL CORRECT LOCATION FOR THIS BLOCK
 
 
 
@@ -513,17 +533,22 @@ def computeHoverPerformanceCoefficients(b,R,C,omega,rR = [],cR = [], twist = [],
     
     CTnoLoss = _getCTnoTipLoss(runningThrustLoad, rR)
     
+    print("CT no loss: %s" % CTnoLoss)
+
+    
     # Step 10
     
     B = _getTipLossFactor(CTnoLoss,b)
+    
     
     print(B)
     
     # Step 11
     
-    CT = _getCorrectedCT(CTnoLoss, runningThrustLoad, rR, B)
+    CT = _getCorrectedCT(CTnoLoss, runningThrustLoad, rR, B+0.1)
     
-    print(CT)
+    print("CT: %s" % CT)
+
     
     
     # Step 12
@@ -556,7 +581,7 @@ rR = np.array([0.1,0.3,0.5,0.9])
 
 thetas = np.array([0.2,0.2,0.2,0.2])
 
-naca0012 = pd.read_csv("NACA0012_RE500000_RAWXF.txt",delim_whitespace=True)
+naca0012 = pd.read_csv("NACA4412_RE500000_RAWXF.txt",delim_whitespace=True)
 
 testProp = pd.read_csv("apcff_9x4_geom.txt",delim_whitespace=True)
 
@@ -583,7 +608,7 @@ computeHoverPerformanceCoefficients(2,0.22,0.02,100,testProp['r/R'],testProp['c/
 
 
 
-# Fitness test
+#Fitness test
 
 
 # x = naca0012.iloc[:,0].to_numpy(dtype=float)
@@ -594,10 +619,17 @@ computeHoverPerformanceCoefficients(2,0.22,0.02,100,testProp['r/R'],testProp['c/
 
 # y = y[72:132]
 
+# fgrad = np.gradient(y,0.25)
+
+# print(fgrad)
+
+# abline = [fgrad + i for i in x]
+
 
 # thinAirfoil = lambda alpha : 2 * np.pi * (np.pi/180) * alpha
 
 # test = thinAirfoil(x)
 
 
-# plt.plot(x,y,x,thinAirfoil(x))
+# plt.plot(x,y)
+# plt.plot(x,abline)
