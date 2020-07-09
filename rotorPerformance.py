@@ -322,7 +322,7 @@ def _getRunningInducedTorqueCoefficient(b,rR,cR,cl,induced_Vel):
 
 
 # Step 15
-def _getInducedTorqueCoefficient(dqi_dr,rR, x_hub = 0.1, B = 0.9):
+def _getInducedTorqueCoefficient(dqi_dr,rR, B = 0.9, x_hub = 0.1):
     
     assert(len(dqi_dr) == len(rR))
     
@@ -382,21 +382,21 @@ def _computeDiskLoading(CT,rho,omega,R):
 
 # Step 18
 
-def _computeRatioCTtoSolidity(CT,b,c,R):
+def _computeRatioCTtoSolidity(CT,b,C,R):
     
-    return (CT)/(((b*c)/(np.pi*R)))
+    return (CT)/(((b*C)/(np.pi*R)))
 
 
 # Step 19
 
 ''' HEURISTIC TO ESTIMATE '''
 
-def _computeWakeTorqueLinearCorrection(DiskLoading,CT_solidity):
+def _computeWakeTorqueLinearCorrection(diskLoading,CT_solidity):
     # Source Figure 1.34
     
     '''TODO CREATE A CORRECTION THAT IS MORE ACCURATE'''
     
-    return 0.94 + (1.06 * DiskLoading*CT_solidity)
+    return 0.94 + (1.06 * diskLoading*CT_solidity)
 
 
 
@@ -433,9 +433,9 @@ def _getLiftSlopeCurve(airfoil,omega,R,rR):
     
     slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x,y)
     
-    print('slope: %s' % slope)
-    print('intercept: %s' % intercept)
-    print('rvalue: %s' % r_value)
+    #print('slope: %s' % slope)
+    #print('intercept: %s' % intercept)
+    #print('rvalue: %s' % r_value)
     
     return np.full(rR.shape,slope)
 
@@ -465,6 +465,8 @@ def computeHoverPerformanceCoefficients(b,R,C,omega,rR = [],cR = [], twist = [],
         airfoil: Functionality is still being added. Currently it is running with either NACA0012 or 
         a Pandas dataframe [alpha,cl,cd] of your desired airfoil
     '''
+    
+    RHO = 1.225
     
     assert(len(rR) == len(cR))
     
@@ -520,7 +522,7 @@ def computeHoverPerformanceCoefficients(b,R,C,omega,rR = [],cR = [], twist = [],
     
     cl = aeroCoef_df['CL'].to_numpy(dtype=float)
     
-    cd = aeroCoef_df['CD']
+    cd = aeroCoef_df['CD'].to_numpy(dtype=float)
     
     
     
@@ -545,7 +547,7 @@ def computeHoverPerformanceCoefficients(b,R,C,omega,rR = [],cR = [], twist = [],
     
     # Step 11
     
-    CT = _getCorrectedCT(CTnoLoss, runningThrustLoad, rR, B+0.1)
+    CT = _getCorrectedCT(CTnoLoss, runningThrustLoad, rR, B + 0.1)
     
     print("CT: %s" % CT)
 
@@ -553,23 +555,62 @@ def computeHoverPerformanceCoefficients(b,R,C,omega,rR = [],cR = [], twist = [],
     
     # Step 12
     
+    runProfile = _getRunningProfileTorqueCoefficient(b, rR, cR, cd)
     
     
     
+    # Step 13
+    
+    CQ0 = _getProfileTorqueCoefficient(runProfile,rR)
+    
+    print("CQ0: %s" % CQ0)
+    
+    # Step 14
+    
+    runningInducedTorque = _getRunningInducedTorqueCoefficient(b,rR,cR,cl,inducedAngle)
+    
+    
+    #Step 15
+    
+    CQi = _getInducedTorqueCoefficient(runningInducedTorque,rR)
+    
+    print("CQi: %s" % CQi)
+    
+    # Step 16
+    
+    
+    delCQ = _computeDelCQ(CT,CQi)
     
     
     
+    # Step 17
+    
+    diskLoading = _computeDiskLoading(CT,RHO,omega,R)
     
     
+    # Step 18 
     
-
-
-
+    ''' CALCULATED FOR A HEURISTIC'''
+    
+    CT_div_sigma = _computeRatioCTtoSolidity(CT,b,C,R)
+    
+    # Step 19
+    
+    ''' HEURISTIC '''
     
     
-
-
-
+    wakeFactor = _computeWakeTorqueLinearCorrection(diskLoading,CT_div_sigma)
+    
+    
+    # Step 20
+    
+    CQ = _computeTorqueCoefficient(CQ0,CQi,delCQ,wakeFactor)
+    
+    print("CQ: %s" % CQ)
+    
+    return [CT,CQ]
+    
+    
 
 a = 2*np.pi
 
@@ -581,13 +622,13 @@ rR = np.array([0.1,0.3,0.5,0.9])
 
 thetas = np.array([0.2,0.2,0.2,0.2])
 
-naca0012 = pd.read_csv("NACA4412_RE500000_RAWXF.txt",delim_whitespace=True)
+naca4412 = pd.read_csv("NACA4412_RE500000_RAWXF.txt",delim_whitespace=True)
 
-testProp = pd.read_csv("apcff_9x4_geom.txt",delim_whitespace=True)
+testProp = pd.read_csv("apce_19x12_geom.txt",delim_whitespace=True)
 
 # Scrapping unnecessary data
 
-naca0012 = naca0012.iloc[1:,:3]
+naca4412 = naca4412.iloc[1:,:3]
 
 
 
@@ -597,7 +638,7 @@ naca0012 = naca0012.iloc[1:,:3]
 
 
 
-computeHoverPerformanceCoefficients(2,0.22,0.02,100,testProp['r/R'],testProp['c/R'],testProp['beta'],naca0012)
+computeHoverPerformanceCoefficients(2,0.48,0.2,100,testProp['r/R'],testProp['c/R'],testProp['beta'],naca4412)
 
 
 
