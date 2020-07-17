@@ -971,11 +971,11 @@ class UIUC_Propeller:
         
         twist_rescaled = _rescaleLinearly(self.twist, blade_elements)
         
-        print("GOT HERE")
         
         
-        # length column is based on : b,C,omega,rR[len = blade_elm],cr,twist so: 3 + 3*rblade_element
-        num_columns = blade_elements*3 + 3
+        
+        # length column is based on : [b , R , C ,omega  ,rR[len = blade_elm],cr,twist] Thus: 4 + 3*rblade_element
+        num_columns = blade_elements*3 + 4
         
         num_rows = len(self.RPMs)
         
@@ -983,19 +983,22 @@ class UIUC_Propeller:
         
         y_mat = np.zeros(shape=(num_rows,2))
         
-        for i, CURR_RPM in enumerate(omega):
-            y_mat[i,] = np.array([self.CTs[i],self.CQs[i]])
+
+        
+        for i, CURR_RPM in np.ndenumerate(omega):
             
-            x_mat[i,] = np.array(self.b,self.Radius,C,CURR_RPM,*rR_rescaled,*cR_rescaled,*twist_rescaled)
+            
+                        
+            y_mat[i[1],] = np.array([self.CTs[i[1]],self.CQs[i[1]]])
+
+            
+            x_mat[i[1],] = np.array([self.b,self.Radius, C ,CURR_RPM,*rR_rescaled,*cR_rescaled,*twist_rescaled])
             
             pass
         
         
         
-        return y_mat
-    
-    
-    
+        return [x_mat,y_mat]
     
     pass
 
