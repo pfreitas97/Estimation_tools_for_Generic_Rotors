@@ -11,20 +11,28 @@ import numpy as np
 
 import scipy.integrate
 
+
 # For more accurate estimation of the effect of a hub and tip loss
 import scipy.interpolate
 
 
-
-# Testing regression model for airfoil slope
+# Testing regression models for airfoil slope
 
 import scipy.stats
 
 
 
-# For testing right now
+
+#needed for pulling files from UIUC database
+
+import os
 
 import pandas as pd
+
+
+
+
+# For testing right now
 
 import matplotlib.pyplot as plt
 
@@ -858,38 +866,178 @@ def HoverPerformance_Learned(b,R,C,omega,airfoil,rR,cR, twist,CT_nn,CQ_nn):
     
     return np.array([CT_LEARNED,CQ_LEARNEED])
 
+
+
+
+class UIUC_Propeller:
+    def __init__(self,seed):
+        ''' Seed should have the format [Prop_Name,Diameter,Pitch,geom_path,static_path]
+        
+        Params
+        seed = [str,float,float,str(path),str(path)]    
+        '''
+        
+        assert(os.path.exists(seed[3]))
+        
+        assert(os.path.exists(seed[4]))
+        
+        
+        ''' Assuming all UIUC_Propellers have 2 blades only for now '''
+        
+        self.b = 2
+        
+        ''' above needs checking''' 
+        
+        self.NAME =  seed[0]
+        
+        self.Radius = seed[1]/2 # Note choosing to store radius instead of diameter for convinience
+        
+        self.pitch = seed[2]
+        
+        
+        #self.twist = twist partitions, locations should match the rR elements
+        
+        #self.rR =  r/R blade element partitions
+        
+        #self.cR = non dimensionalized chord (c/R) partitions. Should match r/R
+        
+        self.rR,self.cR,self.twist = self._extractGeometricAttributes(seed[3])
+        
+        self.RPMs, self.CTs, self.CQs = self._extractStaticTestResults(seed[4])
+        
+        pass
     
-a = 2 * np.pi
+    
+    
+    
+    def _extractGeometricAttributes(self,geom_path):
+        
+        geodf = pd.read_csv(geom_path,delim_whitespace=True)
+        
+        # just in case one of the files has a typo.
+        geodf.columns = ['r/R','c/R','beta']
+        
+        return [tuple(geodf['r/R']), tuple(geodf['c/R']), tuple(geodf['beta'])]
+            
+    
+    
+    
+    def _extractStaticTestResults(self,static_path):
+        
+        statdf = pd.read_csv(static_path,delim_whitespace=True)
+        
+        statdf.columns = ['RPM','CT','CQ']
+        
+        return [tuple(statdf['RPM']), tuple(statdf['CT']), tuple(statdf['CQ'])]
+    
+    
+    def _getMaxChord(self):
+        
+        return self.Radius * max(self.cR)
+        
+        pass
+    
+    
+    
+    
+    def getTrainingData(self,blade_elements=15):
+        ''' Return 2 matrices, the first one will contain all attributes of the propeller instance that called, 
+        attributes will either be their in their standard form or one that is most convinient 
+        (e.g. RPM will be converted to radians/sec, r/R and c/R will be rescaled to a fixed length, etc).
+        This first matrix will be of the form:
+        [b,Radius,Chord,RPM[in rad/s], r/R_rescaled,c/R_rescaled,twist_rescaled]
+        
+        In regression terms, this first matrix can be thought of as the 'predictors' or 'x'
+        The second matrix will be:
+        [CT,CQ]
+        A single UIUC_Propeller object will thus correspond to several datapoints as each RPM and its associated CT,CQ
+        will be included in separate rows.
+        
+        Parameters
+        rescaled_blade_elements: The number of points in r/R,c/R,twist, these will be rescaled using '_rescaleLinearly'
+                                    and will therefore utilize the same assumptions.
+        
+        Return:
+            [x_mat,y_mat]
+        '''
+        
+        C = self._getMaxChord()
+        
+        omega =  0.104719755 * np.array([self.RPMs])
+        
+        rR_rescaled = _rescaleLinearly(self.rR, blade_elements)
+        
+        cR_rescaled = _rescaleLinearly(self.cR, blade_elements)
+        
+        twist_rescaled = _rescaleLinearly(self.twist, blade_elements)
+        
+        print("GOT HERE")
+        
+        
+        # length column is based on : b,C,omega,rR[len = blade_elm],cr,twist so: 3 + 3*rblade_element
+        num_columns = blade_elements*3 + 3
+        
+        num_rows = len(self.RPMs)
+        
+        x_mat = np.zeros(shape=(num_rows,num_columns))
+        
+        y_mat = np.zeros(shape=(num_rows,2))
+        
+        for i, CURR_RPM in enumerate(omega):
+            y_mat[i,] = np.array([self.CTs[i],self.CQs[i]])
+            
+            x_mat[i,] = np.array(self.b,self.Radius,C,CURR_RPM,*rR_rescaled,*cR_rescaled,*twist_rescaled)
+            
+            pass
+        
+        
+        
+        return y_mat
+    
+    
+    
+    
+    pass
 
-b = 2
-
-cR = 0.2
-
-rR = np.array([0.1,0.3,0.5,0.9])
-
-thetas = np.array([0.2,0.2,0.2,0.2])
-
-naca4412 = pd.read_csv("NACA4412_RE500000.txt",delim_whitespace=True)
-
-SC1095 = pd.read_csv("SC1095_RE500000.txt",delim_whitespace=True)
 
 
-testProp = pd.read_csv("apce_19x12_geom.txt",delim_whitespace=True)
 
-# Scrapping unnecessary data
+
+
+
+
+#Testing    
+# a = 2 * np.pi
+
+# b = 2
+
+# cR = 0.2
+
+# rR = np.array([0.1,0.3,0.5,0.9])
+
+# thetas = np.array([0.2,0.2,0.2,0.2])
+
+naca4412 = pd.read_csv(os.path.join("Testing_Airfoils","NACA4412_RE500000.txt"),delim_whitespace=True)
+
+# SC1095 = pd.read_csv("SC1095_RE500000.txt",delim_whitespace=True)
+
+
+testProp = pd.read_csv(os.path.join("Testing_Propellers","apce_19x12_geom.txt"),delim_whitespace=True)
+
+# # Scrapping unnecessary data
 
 naca4412 = naca4412.iloc[1:,:3]
 
-SC1095 = SC1095.iloc[1:,:3]
+# SC1095 = SC1095.iloc[1:,:3]
 
 
 
-CT,CQ = HoverPerformance_Classical(2,0.48,0.2,100,naca4412,testProp['r/R'],testProp['c/R'],testProp['beta'])
+# CT,CQ = HoverPerformance_Classical(2,0.48,0.2,100,naca4412,testProp['r/R'],testProp['c/R'],testProp['beta'])
 
 
-CT,CQ = HoverPerformance_Learned(2,0.48,0.2,100,naca4412,testProp['r/R'],testProp['c/R'],testProp['beta'],
-                                 np.array([1,0]),
-                                 np.array([1,0]))
+# CT,CQ = HoverPerformance_Learned(2,0.48,0.2,100,naca4412,testProp['r/R'],testProp['c/R'],testProp['beta'],
+#                                  np.array([1,0]),
+#                                  np.array([1,0]))
 
 
 
