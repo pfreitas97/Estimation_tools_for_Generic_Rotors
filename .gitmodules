@@ -1,0 +1,3 @@
+[submodule "Parser_UIUC_AeroData"]
+	path = Parser_UIUC_AeroData
+	url = https://github.com/pfreitas97/Parser_UIUC_AeroData.git
