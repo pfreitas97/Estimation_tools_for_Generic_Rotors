@@ -28,6 +28,8 @@ import scipy.stats
 import pandas as pd
 
 
+from Parser_UIUC_AeroData.propeller_data_util import UIUC_Propeller
+
 
 
 
@@ -450,7 +452,7 @@ def _computeTorqueCoefficient(CQ,CQi,delCQ,wakeCorrection):
 
     assert(np.isscalar(delCQ))
 
-    assert(np.isscalar(wakeCorrection))
+    #assert(np.isscalar(wakeCorrection))
     
     return (CQ + CQi + delCQ)*wakeCorrection
 
@@ -459,8 +461,7 @@ def _computeTorqueCoefficient(CQ,CQi,delCQ,wakeCorrection):
 
 
 
-
-def HoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
+def hoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
     ''' Main function to compute the Coefficient of Thrust and Torque for a hovering aircraft
     
     Params:
@@ -495,6 +496,14 @@ def HoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
     if len(rR) == 0:
         rR,cR,twist = _tabulateBladeElements(C, R, twist)
         pass
+    
+    
+    # Making sure all iterables are in a format that is suitable:
+    
+    rR = np.array(rR)
+    cR = np.array(cR)
+    twist = np.array(twist)
+    
     
     
     # Converting twist from Degrees to Radians
@@ -550,7 +559,7 @@ def HoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
     
     CTnoLoss = _getCTnoTipLoss(runningThrustLoad, rR)
     
-    print("CT no loss: %s" % CTnoLoss)
+    '''print("CT no loss: %s" % CTnoLoss)'''
 
     
     # Step 10
@@ -558,13 +567,13 @@ def HoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
     B = _getTipLossFactor(CTnoLoss,b)
     
     
-    print("B: %s " % B)
+    '''print("B: %s " % B)'''
     
     # Step 11
     
     CT = _getCorrectedCT(CTnoLoss, runningThrustLoad, rR, B)
     
-    print("CT: %s" % CT)
+    '''print("CT: %s" % CT)'''
 
     
     
@@ -578,7 +587,7 @@ def HoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
     
     CQ0 = _getProfileTorqueCoefficient(runProfile,rR)
     
-    print("CQ0: %s" % CQ0)
+    '''print("CQ0: %s" % CQ0)'''
     
     # Step 14
     
@@ -589,7 +598,7 @@ def HoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
     
     CQi = _getInducedTorqueCoefficient(runningInducedTorque,rR)
     
-    print("CQi: %s" % CQi)
+    '''print("CQi: %s" % CQi)'''
     
     # Step 16
     
@@ -599,6 +608,7 @@ def HoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
     
     
     # Step 17
+    
     
     diskLoading = _computeDiskLoading(CT,RHO,omega,R)
     
@@ -617,16 +627,23 @@ def HoverPerformance_Classical(b,R,C,omega,airfoil,rR = [],cR = [], twist = []):
     
     
     # Step 20
-    
+        
     CQ = _computeTorqueCoefficient(CQ0,CQi,delCQ,wakeFactor)
     
-    print("CQ: %s" % CQ)
+    if not np.isscalar(CQ):
+       # print("type: %s " % type(CQ))
+        CT = np.full(CQ.shape ,CT)
+        pass
+    
+    
+    
+    '''print("CQ: %s" % CQ)'''
     
     return [CT,CQ]
 
 
 
-def HoverPerformance_Learned(b,R,C,omega,airfoil,rR,cR, twist,CT_nn,CQ_nn):
+def hoverPerformance_Learned(b,R,C,omega,airfoil,rR,cR, twist,CT_nn,CQ_nn):
     ''' Main function used to compute CT and CQ based a learned heuristic for CT and CQ adjustment
     
     Params:
@@ -664,6 +681,13 @@ def HoverPerformance_Learned(b,R,C,omega,airfoil,rR,cR, twist,CT_nn,CQ_nn):
     if len(rR) == 0:
         rR,cR,twist = _tabulateBladeElements(C, R, twist)
         pass
+    
+    # Making sure all iterables are in a format that is suitable:
+    
+    rR = np.array(rR)
+    cR = np.array(cR)
+    twist = np.array(twist)
+    
     
     
     # Converting twist from Degrees to Radians
@@ -806,165 +830,96 @@ def HoverPerformance_Learned(b,R,C,omega,airfoil,rR,cR, twist,CT_nn,CQ_nn):
     return np.array([CT_LEARNED,CQ_LEARNEED])
 
 
-## Moved to different repo where it is more relevant
-
-# def _rescaleLinearly(targetVector,newLength):
-#     ''' Take a vector with an undersirable number of data points (e.g. twist/beta matrix) and rescales it to
-#     the desired dimension, assumes equally spaced data points.
-    
-#     targetVector: Vector of points that need to be rescaled to the appropriate number
-#     newLength: Desired number of points
-#     '''
-    
-#     assert(np.isscalar(newLength))
-    
-    
-#     x_old = np.linspace(0,1,len(targetVector))
-    
-#     x_new = np.linspace(0,1,newLength)
-    
-#     interp = scipy.interpolate.interp1d(x_old,targetVector,fill_value="extrapolate")
-    
-#     return interp(x_new)
 
 
+def getFullTrainingData(dataframes,rescale_coefficients=False,airfoil = None,blade_elements=15,scale_omega=3000,dropDuplicates=True):
+    ''' Parse through iterable (list,tuple) of dataframes where every row follows the format 
+    [propller_name,diameter,pitch,geometric_path,static_path] as seen in 'merge_propeller_files' within the 
+    Parse_UIUC_Aerodata module. 
+    Return two numpy matrices. First matrix contains the indpendent variables and every row follows the format below:
+    [blade number, radius, max chord, rot. speed[rad/s], *r/R , * c/R, *twist] (where *variable implies values are tabulated 
+    at specific blade element points). 
+    
+    The second matrix contains the dependent variables: [CT,CQ], the coefficients of thrust and torque respectively. 
+    
+    Parameters:
+    
+    dataframes: iterable of dataframes following format described above
+    
+    rescale_coefficients: When set to true, calculate the coefficients through momentum theory and divide the result
+    
+    airfoiil: dataframe with airfoil information [alphas,CL,CD] (currently assuming all propellers utilize the same airfoil)
 
-# class UIUC_Propeller:
-#     def __init__(self,seed):
-#         ''' Seed should have the format [Prop_Name,Diameter,Pitch,geom_path,static_path]
-        
-#         Params
-#         seed = [str,float,float,str(path),str(path)]    
-#         '''
-        
-#         assert(os.path.exists(seed[3]))
-        
-#         assert(os.path.exists(seed[4]))
-        
-        
-#         ''' Assuming all UIUC_Propellers have 2 blades only for now '''
-        
-#         self.b = 2
-        
-#         ''' above needs checking''' 
-        
-#         self.NAME =  seed[0]
-        
-#         self.Radius = seed[1]/2 # Note choosing to store radius instead of diameter for convinience
-        
-#         self.pitch = seed[2]
-        
-        
-#         #self.twist = twist partitions, locations should match the rR elements
-        
-#         #self.rR =  r/R blade element partitions
-        
-#         #self.cR = non dimensionalized chord (c/R) partitions. Should match r/R
-        
-#         self.rR,self.cR,self.twist = self._extractGeometricAttributes(seed[3])
-        
-#         self.RPMs, self.CTs, self.CQs = self._extractStaticTestResults(seed[4])
-        
-#         pass
     
+    blade_element: determines number of tabulated blade elements and effectvely the dimensions of the array of independent variables
     
+    scale_omega: In order to maintain all parameters around the same order the angular velocity should be divided by 
+                    something, one possible solution is the maximum value in the test data or a value around that value. 
+                    It is important to remember to scale omega by the same value if using the trained network to predict.
+                    
+    dropDuplicates: reduce number of different propeller files used that may be utilizing some of the same files.
+    '''
     
+    assert(len(dataframes) > 0)
     
-#     def _extractGeometricAttributes(self,geom_path):
+    df = pd.concat(dataframes, ignore_index=True)
+    
+    XMAT = [] # Full matrix with every individual training data file vertically concatenated
+    YMAT = []
+    
+    for index,row in df.iterrows():
         
-#         geodf = pd.read_csv(geom_path,delim_whitespace=True)
+        curr_prop = UIUC_Propeller(row)
         
-#         # just in case one of the files has a typo.
-#         geodf.columns = ['r/R','c/R','beta']
+        xmat,ymat = curr_prop.getTrainingData()
         
-#         return [tuple(geodf['r/R']), tuple(geodf['c/R']), tuple(geodf['beta'])]
+        
+        # The fourth column contains the angular velocity information (omega)
+        
+        assert(np.isscalar(scale_omega) and scale_omega > 0)
+        
+        xmat[:,3] = np.divide(xmat[:,3],scale_omega)
+        
+        if rescale_coefficients:
             
-    
-    
-    
-#     def _extractStaticTestResults(self,static_path):
-        
-#         statdf = pd.read_csv(static_path,delim_whitespace=True)
-        
-#         statdf.columns = ['RPM','CT','CQ']
-        
-#         return [tuple(statdf['RPM']), tuple(statdf['CT']), tuple(statdf['CQ'])]
-    
-    
-#     def _getMaxChord(self):
-        
-#         return self.Radius * max(self.cR)
-        
-#         pass
-    
-    
-    
-    
-#     def getTrainingData(self,blade_elements=15):
-#         ''' Return 2 matrices, the first one will contain all attributes of the propeller instance that called, 
-#         attributes will either be their in their standard form or one that is most convinient 
-#         (e.g. RPM will be converted to radians/sec, r/R and c/R will be rescaled to a fixed length, etc).
-#         This first matrix will be of the form:
-#         [b,Radius,Chord,RPM[in rad/s], r/R_rescaled,c/R_rescaled,twist_rescaled]
-        
-#         In regression terms, this first matrix can be thought of as the 'predictors' or 'x'
-#         The second matrix will be:
-#         [CT,CQ]
-#         A single UIUC_Propeller object will thus correspond to several datapoints as each RPM and its associated CT,CQ
-#         will be included in separate rows.
-        
-#         Parameters
-#         rescaled_blade_elements: The number of points in r/R,c/R,twist, these will be rescaled using '_rescaleLinearly'
-#                                     and will therefore utilize the same assumptions.
-        
-#         Return:
-#             [x_mat,y_mat]
-#         '''
-        
-#         C = self._getMaxChord()
-        
-#         omega =  0.104719755 * np.array([self.RPMs])
-        
-#         rR_rescaled = _rescaleLinearly(self.rR, blade_elements)
-        
-#         cR_rescaled = _rescaleLinearly(self.cR, blade_elements)
-        
-#         twist_rescaled = _rescaleLinearly(self.twist, blade_elements)
-        
-        
-        
-        
-#         # length column is based on : [b , R , C ,omega  ,rR[len = blade_elm],cr,twist] Thus: 4 + 3*rblade_element
-#         num_columns = blade_elements*3 + 4
-        
-#         num_rows = len(self.RPMs)
-        
-#         x_mat = np.zeros(shape=(num_rows,num_columns))
-        
-#         y_mat = np.zeros(shape=(num_rows,2))
-        
-
-        
-#         for i, CURR_RPM in np.ndenumerate(omega):
+            assert(airfoil is not None)
+            
+            propList = curr_prop.getHoverData()
+            
+            b = propList[0]
+            R = propList[1]
+            C = propList[2]
+            omega = propList[3]
+            rR = propList[4]
+            cR = propList[5]
+            twist = propList[6]
             
             
-                        
-#             y_mat[i[1],] = np.array([self.CTs[i[1]],self.CQs[i[1]]])
-
+            CT,CQ = hoverPerformance_Classical(b,R,C,omega,airfoil,rR,cR,twist)
             
-#             x_mat[i[1],] = np.array([self.b,self.Radius, C ,CURR_RPM,*rR_rescaled,*cR_rescaled,*twist_rescaled])
+            ymat[:,0]= np.divide(ymat[:,0],CT)
             
-#             pass
+            ymat[:,1] = np.divide(ymat[:,1],CQ)
+            
+            
+            pass
         
         
         
-#         return [x_mat,y_mat]
+        if index == 0:
+            XMAT = xmat
+            YMAT = ymat
+            pass
+        else:
+            XMAT = np.concatenate([XMAT,xmat])
+            YMAT = np.concatenate([YMAT,ymat])            
+            pass
+        
+        
+        
+        pass
     
-#     pass
-
-
-
-
+    return [XMAT,YMAT]
 
 
 
