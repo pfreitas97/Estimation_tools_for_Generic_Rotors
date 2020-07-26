@@ -214,9 +214,7 @@ def get_UIUC_RotorData(dataframes):
         _ ,y = curr_prop.getTrainingData() # this is a ndarray with every ct,cq for each rpm
         
         # here i must go through each omega in prop list, and append the row using omega as a simple scalar
-        
-        print(y)
-        
+                
         b = propList[0]
         R = propList[1]
         C = propList[2]
@@ -418,12 +416,7 @@ def hoverPerformance_Learned(b,R,C,omega,airfoil,rR,cR, twist,saved_tf_path_CT,s
     nn_weight_CT = loaded_CT_model.predict(target_vector)
     
     nn_weight_CQ = loaded_CQ_model.predict(target_vector)
-    
-    print("nn_weight_ct %s" % nn_weight_CT)
-    
-    print("nn_weight_cq %s" % nn_weight_CQ)
-    
-    
+        
         
     return np.array([nn_weight_CT * CT,nn_weight_CQ*CQ])
 
