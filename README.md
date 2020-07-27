@@ -15,22 +15,17 @@ There are several complex reasons which cause a model that works well for large 
 
 The objective of this repo was to find a way to translate the methods that work so well for helicopters, into the world of RC-aircraft. It was found that the simplest way of achieving a satisfactory result was by replacing the empirical corrections used in the classical model with learned corrections trained with a Database of Propeller test data and a simple keras Dense neural network.
 
-## Methodology
-
-I coded.
-
 ## Results
 
-Hella good.
+There were a total of 1916 data points, 85% were used to create an empirical correction factor to replace the one used by Prouty. The other 15% were kept separate and only used to test the model subsequently.
+Testing the trained model against the validation data it was found that the absolute percentage error was 5.1% in estimated Thrust, and 4.9% in Power requirements. 
 
-## Use cases
+There are a number of steps that could be taken to improve on the accuracy of the model, in the future I will likely make a more sophisticated network and compare the program's results against some propellers I measured during my senior design project.
 
 
 
 ## Next steps
 
-TODO PROOF READ
-
-In the future it would be very helpful to have rotorcraft performance as a function of Advance Ratio, so that the performance of the drone during forward flight can be gleaned. It should be fairly straight-forward to achieve this, since UIUC also provides test data for different flight conditions and there are established methods for relaxing the assumptions made when determing hover performance with blade element models into a more general.
+In the future it would be very helpful to have rotorcraft performance as a function of Advance Ratio.  This would allow the performance of the drone during forward flight to also be analysed. It should be fairly straight-forward to achieve this, since UIUC also provides test data for different flight conditions and there are established methods for tackling this problem. 
 
 
